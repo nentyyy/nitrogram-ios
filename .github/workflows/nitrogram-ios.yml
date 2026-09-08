@@ -1,0 +1,155 @@
+name: Build Nitrogram iOS (unsigned IPA)
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: "Bazel build configuration"
+        required: false
+        default: "release_arm64"
+        type: choice
+        options:
+          - release_arm64
+          - debug_arm64
+  push:
+    branches: [ nitrogram ]
+    paths-ignore:
+      - '**/*.md'
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          WANT=$(python3 -c 'import json;print(json.load(open("versions.json"))["xcode"])')
+          echo "versions.json wants Xcode $WANT"
+          if [ -d "/Applications/Xcode_$WANT.app" ]; then
+            SELECTED="/Applications/Xcode_$WANT.app"
+          else
+            echo "::warning::Xcode $WANT not installed on this runner, falling back to newest available"
+            SELECTED=$(ls -d /Applications/Xcode_*.app | sort -V | tail -n1)
+          fi
+          echo "Using $SELECTED"
+          sudo xcode-select -s "$SELECTED/Contents/Developer"
+          xcodebuild -version
+
+      - name: Create canonical source directory
+        run: |
+          set -euxo pipefail
+          # Source paths get baked into the binary; keep them stable across builds.
+          sudo mkdir -p /Users/Shared
+          sudo chown -R "$(whoami)" /Users/Shared
+          cp -R "$GITHUB_WORKSPACE" /Users/Shared/
+          mv "/Users/Shared/$(basename "$GITHUB_WORKSPACE")" /Users/Shared/telegram-ios
+
+      - name: Write build configuration
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEGRAM_API_ID:-}" ] || [ -z "${TELEGRAM_API_HASH:-}" ]; then
+            echo "::error::Secrets TELEGRAM_API_ID and TELEGRAM_API_HASH are required. Get them at https://my.telegram.org/apps"
+            exit 1
+          fi
+          cd /Users/Shared/telegram-ios
+          # Bundle id and team id must keep matching the bundled fake provisioning
+          # profiles, so only the API credentials are overridden here.
+          python3 - <<'PY'
+          import json, os
+          with open('build-system/appstore-configuration.json') as f:
+              cfg = json.load(f)
+          cfg['api_id'] = os.environ['TELEGRAM_API_ID']
+          cfg['api_hash'] = os.environ['TELEGRAM_API_HASH']
+          cfg['is_appstore_build'] = 'false'
+          cfg['is_internal_build'] = 'true'
+          cfg['appstore_id'] = '0'
+          cfg['enable_siri'] = False
+          cfg['enable_icloud'] = False
+          with open('build-system/nitrogram-configuration.json', 'w') as f:
+              json.dump(cfg, f, indent=4)
+          PY
+          echo "Configuration written (api_id/api_hash redacted)."
+
+      - name: Build the app
+        run: |
+          set -euxo pipefail
+          SOURCE_DIR=/Users/Shared/telegram-ios
+          BAZEL_USER_ROOT="/private/var/tmp/_bazel_containerhost"
+          cd "$SOURCE_DIR"
+
+          BUILD_NUMBER_OFFSET="$(cat build_number_offset)"
+          APP_VERSION=$(python3 -c 'import json;print(json.load(open("versions.json"))["app"])')
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          BUILD_NUMBER=$((COMMIT_COUNT + BUILD_NUMBER_OFFSET))
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+
+          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+          python3 -u build-system/Make/Make.py \
+            --bazelUserRoot="$BAZEL_USER_ROOT" \
+            build \
+            --configurationPath="build-system/nitrogram-configuration.json" \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration="${{ inputs.configuration || 'release_arm64' }}" \
+            --buildNumber="$BUILD_NUMBER"
+
+      - name: Collect artifacts
+        run: |
+          set -euxo pipefail
+          cd /Users/Shared/telegram-ios
+          OUTPUT_PATH="build/artifacts"
+          rm -rf "$OUTPUT_PATH"
+          mkdir -p "$OUTPUT_PATH"
+
+          shopt -s nullglob
+          ipas=(bazel-out/applebin_ios-ios_arm*-*/bin/Telegram/Telegram.ipa)
+          if [ ${#ipas[@]} -eq 0 ]; then
+            echo "::error::No .ipa produced"
+            exit 1
+          fi
+          cp "${ipas[0]}" "$OUTPUT_PATH/Nitrogram.ipa"
+
+          mkdir -p build/DSYMs
+          for f in bazel-out/applebin_ios-ios_arm*-*/bin/Telegram/*.dSYM; do
+            cp -R "$f" build/DSYMs/
+          done
+          zip -qr "$OUTPUT_PATH/Nitrogram.DSYMs.zip" build/DSYMs
+
+          ls -lh "$OUTPUT_PATH"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nitrogram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: /Users/Shared/telegram-ios/build/artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          cd /Users/Shared/telegram-ios
+          gh release create "build-$BUILD_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Nitrogram $APP_VERSION ($BUILD_NUMBER)" \
+            --notes "Unsigned build of Nitrogram for iOS $APP_VERSION ($BUILD_NUMBER). Sideload with AltStore / Sideloadly / TrollStore." \
+            build/artifacts/Nitrogram.ipa \
+            build/artifacts/Nitrogram.DSYMs.zip
