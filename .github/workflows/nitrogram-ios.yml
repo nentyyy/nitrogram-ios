@@ -67,19 +67,16 @@ jobs:
             exit 1
           fi
           cd /Users/Shared/telegram-ios
-          # Bundle id and team id must keep matching the bundled fake provisioning
-          # profiles, so only the API credentials are overridden here.
+          # Keep every field identical to the upstream configuration that Telegram's
+          # own CI builds with -- bundle id and team id must match the bundled fake
+          # provisioning profiles, and the entitlement flags are load-bearing.
+          # Only the API credentials are overridden.
           python3 - <<'PY'
           import json, os
           with open('build-system/appstore-configuration.json') as f:
               cfg = json.load(f)
           cfg['api_id'] = os.environ['TELEGRAM_API_ID']
           cfg['api_hash'] = os.environ['TELEGRAM_API_HASH']
-          cfg['is_appstore_build'] = 'false'
-          cfg['is_internal_build'] = 'true'
-          cfg['appstore_id'] = '0'
-          cfg['enable_siri'] = False
-          cfg['enable_icloud'] = False
           with open('build-system/nitrogram-configuration.json', 'w') as f:
               json.dump(cfg, f, indent=4)
           PY
