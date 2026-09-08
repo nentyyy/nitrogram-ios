@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "Example Greeter",
+  "description": "Logs a greeting whenever a chat is opened.",
+  "version": "1.0",
+  "author": "Nitrogram",
+  "extra": "Reference mod - safe to enable, it only writes to the mod log.",
+  "settings": [
+    {
+      "key": "greeting",
+      "type": "text",
+      "title": "Greeting",
+      "subtitle": "Written to the log when a chat opens",
+      "placeholder": "hello",
+      "default": "hello"
+    },
+    {
+      "key": "loud",
+      "type": "switch",
+      "title": "Shout it",
+      "default": false
+    }
+  ],
+  "source": "\n// Nitrogram example mod.\n// Demonstrates the whole contract: metadata, settings, lifecycle, events.\n\nvar greeting = \"hello\";\nvar isLoud = false;\n\n// Called once when the mod is enabled.\nfunction apply() {\n    Nitrogram.log(\"started \" + Nitrogram.mod.name + \" v\" + Nitrogram.mod.version);\n\n    Nitrogram.on(\"chatOpened\", function (payload) {\n        var line = greeting + \", \" + (payload.title || \"chat\");\n        Nitrogram.log(isLoud ? line.toUpperCase() : line);\n    });\n\n    Nitrogram.on(\"appDidBecomeActive\", function () {\n        Nitrogram.log(\"app is active again\");\n    });\n}\n\n// Called on load with stored values, and again on every settings change.\nfunction applySettings(json) {\n    var values = JSON.parse(json);\n    greeting = values.greeting || \"hello\";\n    isLoud = values.loud === true;\n}\n\n// Optional. Called when the user disables the mod.\nfunction unapply() {\n    Nitrogram.log(\"stopped\");\n}\n"
+}

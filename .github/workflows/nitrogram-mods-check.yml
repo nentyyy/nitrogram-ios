@@ -1,0 +1,65 @@
+name: Check mods module
+
+# The mods module is not yet in the app's Bazel dependency graph, so the long
+# IPA build would not catch a compile error in it. This job type-checks it
+# directly, in about a minute.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ nitrogram ]
+    paths:
+      - 'submodules/NitrogramMods/**'
+      - '.github/workflows/nitrogram-mods-check.yml'
+
+jobs:
+  typecheck:
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          WANT=$(python3 -c 'import json;print(json.load(open("versions.json"))["xcode"])')
+          if [ -d "/Applications/Xcode_$WANT.app" ]; then
+            SELECTED="/Applications/Xcode_$WANT.app"
+          else
+            SELECTED=$(ls -d /Applications/Xcode_*.app | sort -V | tail -n1)
+          fi
+          sudo xcode-select -s "$SELECTED/Contents/Developer"
+          xcodebuild -version
+
+      - name: Type-check NitrogramMods
+        run: |
+          set -euxo pipefail
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          # -swift-version 5 matches the language mode the app is built in.
+          xcrun --sdk iphoneos swiftc \
+            -typecheck \
+            -swift-version 5 \
+            -target arm64-apple-ios13.0 \
+            -sdk "$SDK_PATH" \
+            submodules/NitrogramMods/Sources/*.swift
+
+      - name: Validate bundled example mods
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob, json, sys
+
+          paths = sorted(glob.glob('submodules/NitrogramMods/examples/*.ngmod'))
+          if not paths:
+              sys.exit('no example mods found')
+
+          for path in paths:
+              with open(path, encoding='utf-8') as f:
+                  package = json.load(f)
+              for field in ('format', 'name', 'version', 'source'):
+                  if field not in package:
+                      sys.exit('%s is missing required field %r' % (path, field))
+              print('%s: ok (%s v%s)' % (path, package['name'], package['version']))
+          PY
