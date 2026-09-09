@@ -11,6 +11,7 @@ on:
     paths:
       - 'submodules/NitrogramMods/**'
       - 'submodules/NitrogramSettings/**'
+      - 'submodules/NitrogramKeyboard/**'
       - '.github/workflows/nitrogram-mods-check.yml'
 
 jobs:
@@ -40,7 +41,7 @@ jobs:
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           # These modules depend only on the SDK, so they can be checked without
           # Bazel. -swift-version 5 matches the app's language mode.
-          for module in NitrogramMods NitrogramSettings; do
+          for module in NitrogramMods NitrogramSettings NitrogramKeyboard; do
             echo "--- $module"
             xcrun --sdk iphoneos swiftc \
               -typecheck \

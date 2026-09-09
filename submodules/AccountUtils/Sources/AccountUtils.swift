@@ -4,8 +4,12 @@ import TelegramCore
 import TelegramUIPreferences
 import AccountContext
 
-public let maximumNumberOfAccounts = 3
-public let maximumPremiumNumberOfAccounts = 4
+// Nitrogram raises Telegram's 3/4 account slots. The limit is purely local -
+// the server does not cap how many sessions a device multiplexes - but each
+// account keeps its own connection and database, so this costs memory and
+// battery roughly linearly.
+public let maximumNumberOfAccounts = 20
+public let maximumPremiumNumberOfAccounts = 20
 
 public func activeAccountsAndPeers(context: AccountContext, includePrimary: Bool = false) -> Signal<((AccountContext, EnginePeer)?, [(AccountContext, EnginePeer, Int32)]), NoError> {
     let sharedContext = context.sharedContext
