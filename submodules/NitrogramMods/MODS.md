@@ -102,8 +102,20 @@ function unapply() { }
 | `Nitrogram.settings.get(key)` | Текущее значение настройки. |
 | `Nitrogram.settings.set(key, value)` | Изменить и сохранить настройку. |
 
-События: `modsLoaded`, `appDidBecomeActive`, `appWillResignActive`,
-`chatOpened`, `messageSent`, `messageReceived`.
+События:
+
+| Событие | Состояние |
+|---|---|
+| `modsLoaded` | работает — при старте включённых модов |
+| `appDidBecomeActive` | работает |
+| `appWillResignActive` | работает |
+| `chatOpened` | объявлено, **пока не вызывается** |
+| `messageSent` | объявлено, **пока не вызывается** |
+| `messageReceived` | объявлено, **пока не вызывается** |
+
+Последние три доставляются подписчикам корректно, но точки в приложении,
+которые их порождают, ещё не подключены — подписка на них сейчас просто
+никогда не сработает.
 
 ---
 

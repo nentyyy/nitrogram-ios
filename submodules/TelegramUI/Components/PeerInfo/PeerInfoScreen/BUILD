@@ -176,6 +176,7 @@ swift_library(
         "//submodules/TelegramUI/Components/AlertComponent/AlertTransferHeaderComponent",
         "//submodules/TelegramUI/Components/HorizontalTabsComponent",
         "//submodules/TelegramUI/Components/PeerInfo/AccountPeerContextItem",
+        "//submodules/NitrogramModsUI",
     ],
     visibility = [
         "//visibility:public",

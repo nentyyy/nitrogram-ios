@@ -15,6 +15,7 @@ import TelegramPresentationData
 import PresentationDataUtils
 import PasswordSetupUI
 import InstantPageCache
+import NitrogramModsUI
 
 extension PeerInfoScreenNode {
     func openSettings(section: PeerInfoSettingsSection) {
@@ -271,6 +272,8 @@ extension PeerInfoScreenNode {
             self.interaction.editingOpenNameColorSetup()
         case .powerSaving:
             push(energySavingSettingsScreen(context: self.context))
+        case .nitrogramMods:
+            push(nitrogramModsController(context: self.context))
         case .businessSetup:
             guard let controller = self.controller, !controller.presentAccountFrozenInfoIfNeeded() else {
                 return

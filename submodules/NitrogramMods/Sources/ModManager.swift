@@ -149,6 +149,11 @@ public final class ModManager: ModRuntimeDelegate {
     // MARK: - Private
 
     private func startRuntime(for mod: InstalledMod) {
+        // Idempotent, so calling startEnabledMods() more than once cannot leave
+        // two runtimes running the same mod.
+        guard self.runtimes[mod.identifier] == nil else {
+            return
+        }
         let runtime = ModRuntime(mod: mod, delegate: self)
         self.runtimes[mod.identifier] = runtime
         runtime.start()

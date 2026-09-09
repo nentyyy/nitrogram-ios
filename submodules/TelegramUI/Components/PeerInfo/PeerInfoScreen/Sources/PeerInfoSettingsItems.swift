@@ -303,6 +303,10 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
         }
     }
     
+    items[.extra]!.append(PeerInfoScreenDisclosureItem(id: 100, text: "Mods", icon: PresentationResourcesSettings.aiTools, action: {
+        interaction.openSettings(.nitrogramMods)
+    }))
+    
     if let settings = data.globalSettings {
         if settings.hasPassport {
             items[.extra]!.append(PeerInfoScreenDisclosureItem(id: 0, text: presentationData.strings.Settings_Passport, icon: PresentationResourcesSettings.passport, action: {
