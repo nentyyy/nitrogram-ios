@@ -197,8 +197,7 @@ public final class NitrogramKeyboardView: UIView {
             NitrogramKeyboardTextTarget.insertText(" ")
         case .returnKey:
             if self.delegate?.nitrogramKeyboardReturn() != true {
-                NitrogramKeyboardTextTarget.insertText("
-")
+                NitrogramKeyboardTextTarget.insertText("\n")
             }
         case let .page(page):
             self.page = page
