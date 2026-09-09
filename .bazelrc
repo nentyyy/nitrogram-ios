@@ -39,3 +39,9 @@ common:index_build --noannounce_rc
 common:index_build --noshow_timestamps
 common:index_build --curses=no
 common:index_build --color=no
+
+# Nitrogram is sideloaded rather than shipped through the App Store. Dropping the
+# six app extensions takes the IPA from seven App IDs to one - a free Apple ID
+# only gets ten per week, and every extension needs its own profile and app
+# group, which is the usual reason a sideloaded Telegram dies on launch.
+build --//Telegram:disableExtensions

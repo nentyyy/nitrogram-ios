@@ -71,10 +71,9 @@ jobs:
             exit 1
           fi
           cd /Users/Shared/telegram-ios
-          # Keep every field identical to the upstream configuration that Telegram's
-          # own CI builds with -- bundle id and team id must match the bundled fake
-          # provisioning profiles, and the entitlement flags are load-bearing.
-          # Only the API credentials are overridden.
+          # Bundle id and team id stay on the upstream values so the bundled
+          # provisioning profiles still match. The entitlements a sideloaded
+          # build cannot have are dropped in Telegram/BUILD instead.
           python3 - <<'PY'
           import json, os
           with open('build-system/appstore-configuration.json') as f:

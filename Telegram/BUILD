@@ -576,19 +576,16 @@ background_gpu_fragment = official_background_gpu_fragment if telegram_bundle_id
 plist_fragment(
     name = "TelegramEntitlements",
     extension = "entitlements",
+    # Nitrogram is sideloaded, so it asks only for what a re-signed build can
+    # actually be granted: the mandatory application-identifier and its app
+    # group. Push, Siri, iCloud, Apple Pay, CarPlay, unrestricted VoIP,
+    # associated domains, notification filtering, Sign in with Apple and
+    # background GPU all require entitlements Apple issues to a paid team for
+    # that specific app id. An app whose signature cannot back the entitlements
+    # it requests is killed at launch, which is exactly the empty-flash crash
+    # these builds show.
     template = "".join([
-        aps_fragment,
         app_groups_fragment,
-        siri_fragment,
-        associated_domains_fragment,
-        icloud_fragment,
-        apple_pay_merchants_fragment,
-        unrestricted_voip_fragment,
-        carplay_fragment,
-        communication_notifications_fragment,
-        notification_filtering_fragment,
-        signin_fragment,
-        background_gpu_fragment,
     ])
 )
 

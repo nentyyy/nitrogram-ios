@@ -641,7 +641,19 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             isICloudEnabled: buildConfig.isICloudEnabled
         )
         
-        guard let appGroupUrl = maybeAppGroupUrl else {
+        // A build signed with a free Apple ID does not get the App Group
+        // entitlement, and refusing to start over it is the difference between a
+        // working sideload and a dead icon. Nitrogram ships without extensions,
+        // so nothing else shares this container and the app's own Library
+        // directory works just as well.
+        var resolvedAppGroupUrl = maybeAppGroupUrl
+        if resolvedAppGroupUrl == nil {
+            resolvedAppGroupUrl = try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: true).appendingPathComponent("telegram-data", isDirectory: true)
+            if let url = resolvedAppGroupUrl {
+                try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
+            }
+        }
+        guard let appGroupUrl = resolvedAppGroupUrl else {
             self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
             return true
         }
