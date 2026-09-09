@@ -24,6 +24,10 @@ jobs:
   build:
     runs-on: macos-26
     timeout-minutes: 350
+    # The repository default is read-only, which would let the whole build
+    # succeed and then fail when publishing the release.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
