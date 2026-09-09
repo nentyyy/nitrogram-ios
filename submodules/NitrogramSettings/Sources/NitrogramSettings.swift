@@ -21,6 +21,8 @@ public struct NitrogramSettings {
         /// Keep messages that the peer deleted, marked as deleted, instead of
         /// removing them from the chat.
         case keepDeletedMessages = "nitrogram.ghost.keepDeletedMessages"
+        /// Replace the system keyboard with Nitrogram's own inside the app.
+        case customKeyboard = "nitrogram.keyboard.custom"
     }
 
     /// Posted whenever any flag changes, so UI can refresh.

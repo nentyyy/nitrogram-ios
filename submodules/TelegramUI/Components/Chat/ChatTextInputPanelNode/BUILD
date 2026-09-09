@@ -10,6 +10,8 @@ swift_library(
         "-warnings-as-errors",
     ],
     deps = [
+        "//submodules/NitrogramSettings:NitrogramSettings",
+        "//submodules/NitrogramKeyboard:NitrogramKeyboard",
         "//submodules/Display",
         "//submodules/AsyncDisplayKit",
         "//submodules/SSignalKit/SwiftSignalKit",

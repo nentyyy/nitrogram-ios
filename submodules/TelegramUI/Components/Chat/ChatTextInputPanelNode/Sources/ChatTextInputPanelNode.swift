@@ -59,6 +59,8 @@ import ChatRecordingPreviewInputPanelNode
 import ChatInputContextPanelNode
 import RasterizedCompositionComponent
 import RichTextEditorUIKit
+import NitrogramSettings
+import NitrogramKeyboard
 
 /// The chat composer's inline custom-emoji view already exposes `dynamicColor` (forwarding to its backing
 /// `InlineStickerItemLayer`), so it satisfies the editor's emoji-view contract as-is. Declared here (the one
@@ -1277,6 +1279,19 @@ public class ChatTextInputPanelNode: ChatInputPanelNode, ASEditableTextNodeDeleg
         richTextInputNode.inputView.disablesInteractiveTransitionGestureRecognizer = true
         richTextInputNode.inputIsUserInteractionEnabled = !self.sendingTextDisabled
         self.richTextInputNode = richTextInputNode
+
+        // Nitrogram's own keyboard. The composer already exposes the
+        // UITextView.inputView slot, so neither backend needs changing; the
+        // keyboard types into the first responder, which is this editor.
+        // The owner sizes it here - the view never sets its own frame.
+        if NitrogramSettings.isEnabled(.customKeyboard) {
+            let keyboardWidth = UIScreen.main.bounds.width
+            let keyboardView = NitrogramKeyboardView(theme: NitrogramKeyboardTheme.standard(isDark: keyboardAppearance == .dark, accent: tintColor))
+            keyboardView.frame = CGRect(origin: CGPoint(), size: CGSize(width: keyboardWidth, height: NitrogramKeyboardView.preferredHeight(forWidth: keyboardWidth)))
+            richTextInputNode.keyboardInputView = keyboardView
+            richTextInputNode.reloadInputViews()
+        }
+
         richTextInputNode.emojiViewProvider = { [weak self] emoji in
             return self?.emojiViewProvider?(emoji)
         }

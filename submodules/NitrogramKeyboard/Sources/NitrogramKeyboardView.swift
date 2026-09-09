@@ -1,10 +1,12 @@
 import Foundation
 import UIKit
 
+/// Optional hooks. Typing itself is handled by the keyboard - the delegate only
+/// hears about the two actions the host has to decide on.
 public protocol NitrogramKeyboardViewDelegate: AnyObject {
-    func nitrogramKeyboardInsertText(_ text: String)
-    func nitrogramKeyboardDeleteBackward()
-    func nitrogramKeyboardReturn()
+    /// The return key was pressed. Return true if handled (e.g. the message was
+    /// sent); returning false inserts a newline instead.
+    func nitrogramKeyboardReturn() -> Bool
     /// The user asked to go back to the system keyboard.
     func nitrogramKeyboardDismiss()
 }
@@ -180,7 +182,7 @@ public final class NitrogramKeyboardView: UIView {
     @objc private func keyPressed(_ sender: NitrogramKeyButton) {
         switch sender.key.action {
         case let .character(value):
-            self.delegate?.nitrogramKeyboardInsertText(value)
+            NitrogramKeyboardTextTarget.insertText(value)
             if self.isShifted && self.page == .letters {
                 // Shift is one-shot, like the system keyboard's non-locked state.
                 self.isShifted = false
@@ -190,11 +192,14 @@ public final class NitrogramKeyboardView: UIView {
             self.isShifted = !self.isShifted
             self.rebuildKeys()
         case .backspace:
-            self.delegate?.nitrogramKeyboardDeleteBackward()
+            NitrogramKeyboardTextTarget.deleteBackward()
         case .space:
-            self.delegate?.nitrogramKeyboardInsertText(" ")
+            NitrogramKeyboardTextTarget.insertText(" ")
         case .returnKey:
-            self.delegate?.nitrogramKeyboardReturn()
+            if self.delegate?.nitrogramKeyboardReturn() != true {
+                NitrogramKeyboardTextTarget.insertText("
+")
+            }
         case let .page(page):
             self.page = page
             if page == .letters {
