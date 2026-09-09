@@ -113,19 +113,29 @@ jobs:
           rm -rf "$OUTPUT_PATH"
           mkdir -p "$OUTPUT_PATH"
 
-          shopt -s nullglob
-          ipas=(bazel-out/applebin_ios-ios_arm*-*/bin/Telegram/Telegram.ipa)
-          if [ ${#ipas[@]} -eq 0 ]; then
+          # bazel-bin and bazel-out are symlinks, so find needs -L or it walks
+          # nothing and silently reports success (see CLAUDE.md).
+          IPA_PATH=$(find -L bazel-bin bazel-out -maxdepth 8 -name 'Telegram.ipa' -type f 2>/dev/null | head -n 1 || true)
+          if [ -z "$IPA_PATH" ]; then
             echo "::error::No .ipa produced"
+            echo "--- bazel-bin/Telegram ---"
+            ls -la bazel-bin/Telegram 2>/dev/null | head -40 || echo "(missing)"
+            echo "--- workspace bazel symlinks ---"
+            ls -la | grep -i bazel || true
             exit 1
           fi
-          cp "${ipas[0]}" "$OUTPUT_PATH/Nitrogram.ipa"
+          echo "Found IPA at $IPA_PATH"
+          cp "$IPA_PATH" "$OUTPUT_PATH/Nitrogram.ipa"
 
           mkdir -p build/DSYMs
-          for f in bazel-out/applebin_ios-ios_arm*-*/bin/Telegram/*.dSYM; do
-            cp -R "$f" build/DSYMs/
+          find -L bazel-bin -maxdepth 3 -name '*.dSYM' -type d 2>/dev/null | while IFS= read -r dsym; do
+            cp -R "$dsym" build/DSYMs/
           done
-          zip -qr "$OUTPUT_PATH/Nitrogram.DSYMs.zip" build/DSYMs
+          if [ -n "$(ls -A build/DSYMs 2>/dev/null)" ]; then
+            zip -qr "$OUTPUT_PATH/Nitrogram.DSYMs.zip" build/DSYMs
+          else
+            echo "::warning::No dSYM bundles found; publishing the IPA only"
+          fi
 
           ls -lh "$OUTPUT_PATH"
 
@@ -144,9 +154,10 @@ jobs:
         run: |
           set -euxo pipefail
           cd /Users/Shared/telegram-ios
+          # Upload whatever the collect step actually produced, so a missing
+          # dSYM archive cannot fail the release.
           gh release create "build-$BUILD_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Nitrogram $APP_VERSION ($BUILD_NUMBER)" \
             --notes "Unsigned build of Nitrogram for iOS $APP_VERSION ($BUILD_NUMBER). Sideload with AltStore / Sideloadly / TrollStore." \
-            build/artifacts/Nitrogram.ipa \
-            build/artifacts/Nitrogram.DSYMs.zip
+            build/artifacts/*
