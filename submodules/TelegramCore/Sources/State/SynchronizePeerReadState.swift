@@ -2,6 +2,7 @@ import Foundation
 import Postbox
 import TelegramApi
 import SwiftSignalKit
+import NitrogramSettings
 
 
 private enum PeerReadStateMarker: Equatable {
@@ -227,6 +228,14 @@ private func validatePeerReadState(network: Network, postbox: Postbox, stateMana
 }
 
 private func pushPeerReadState(network: Network, postbox: Postbox, stateManager: AccountStateManager, peerId: PeerId, readState: PeerReadState) -> Signal<PeerReadState, PeerReadStateValidationError> {
+    if NitrogramSettings.isEnabled(.ghostReadReceipts) {
+        // Ghost mode: the read state stays purely local. Returning it unchanged
+        // still lets the caller confirm the pending synchronisation operation,
+        // so the queue does not grow without bound, while the server is never
+        // told that anything was read.
+        return .single(readState)
+    }
+
     if peerId.namespace == Namespaces.Peer.SecretChat {
         return inputSecretChat(postbox: postbox, peerId: peerId)
         |> mapToSignal { inputPeer -> Signal<PeerReadState, PeerReadStateValidationError> in

@@ -273,7 +273,7 @@ extension PeerInfoScreenNode {
         case .powerSaving:
             push(energySavingSettingsScreen(context: self.context))
         case .nitrogramMods:
-            push(nitrogramModsController(context: self.context))
+            push(nitrogramSettingsController(context: self.context))
         case .businessSetup:
             guard let controller = self.controller, !controller.presentAccountFrozenInfoIfNeeded() else {
                 return

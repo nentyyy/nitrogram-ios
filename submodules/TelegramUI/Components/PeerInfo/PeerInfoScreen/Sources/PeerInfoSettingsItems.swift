@@ -303,7 +303,7 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
         }
     }
     
-    items[.extra]!.append(PeerInfoScreenDisclosureItem(id: 100, text: "Mods", icon: PresentationResourcesSettings.aiTools, action: {
+    items[.extra]!.append(PeerInfoScreenDisclosureItem(id: 100, text: "Nitrogram", icon: PresentationResourcesSettings.aiTools, action: {
         interaction.openSettings(.nitrogramMods)
     }))
     

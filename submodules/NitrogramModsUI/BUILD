@@ -17,6 +17,7 @@ swift_library(
         "//submodules/PresentationDataUtils:PresentationDataUtils",
         "//submodules/TextFormat:TextFormat",
         "//submodules/NitrogramMods:NitrogramMods",
+        "//submodules/NitrogramSettings:NitrogramSettings",
     ],
     visibility = [
         "//visibility:public",

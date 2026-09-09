@@ -3,6 +3,7 @@ import TelegramApi
 import Postbox
 import SwiftSignalKit
 import MtProtoKit
+import NitrogramSettings
 
 private typealias SignalKitTimer = SwiftSignalKit.Timer
 
@@ -43,6 +44,15 @@ private final class AccountPresenceManagerImpl {
     }
     
     private func updatePresence(_ isOnline: Bool) {
+        var isOnline = isOnline
+        if NitrogramSettings.isEnabled(.ghostOnlineStatus) {
+            // Ghost mode: always report offline, and never arm the keep-alive
+            // timer that would re-announce us. A timer armed before the setting
+            // was turned on still fires within 30s and lands here, so an active
+            // session corrects itself rather than staying visibly online.
+            isOnline = false
+        }
+
         let request: Signal<Api.Bool, MTRpcError>
         if isOnline {
             let timer = SignalKitTimer(timeout: 30.0, repeat: false, completion: { [weak self] in

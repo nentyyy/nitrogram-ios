@@ -10,6 +10,7 @@ on:
     branches: [ nitrogram ]
     paths:
       - 'submodules/NitrogramMods/**'
+      - 'submodules/NitrogramSettings/**'
       - '.github/workflows/nitrogram-mods-check.yml'
 
 jobs:
@@ -33,17 +34,21 @@ jobs:
           sudo xcode-select -s "$SELECTED/Contents/Developer"
           xcodebuild -version
 
-      - name: Type-check NitrogramMods
+      - name: Type-check dependency-free Nitrogram modules
         run: |
           set -euxo pipefail
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-          # -swift-version 5 matches the language mode the app is built in.
-          xcrun --sdk iphoneos swiftc \
-            -typecheck \
-            -swift-version 5 \
-            -target arm64-apple-ios13.0 \
-            -sdk "$SDK_PATH" \
-            submodules/NitrogramMods/Sources/*.swift
+          # These modules depend only on the SDK, so they can be checked without
+          # Bazel. -swift-version 5 matches the app's language mode.
+          for module in NitrogramMods NitrogramSettings; do
+            echo "--- $module"
+            xcrun --sdk iphoneos swiftc \
+              -typecheck \
+              -swift-version 5 \
+              -target arm64-apple-ios13.0 \
+              -sdk "$SDK_PATH" \
+              submodules/$module/Sources/*.swift
+          done
 
       - name: Validate bundled example mods
         run: |
