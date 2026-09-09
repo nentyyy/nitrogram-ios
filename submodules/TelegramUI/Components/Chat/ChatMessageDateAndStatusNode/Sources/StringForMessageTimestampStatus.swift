@@ -247,6 +247,13 @@ public func stringForMessageTimestampStatus(
             dateText = "\(authorTitle), \(dateText)"
         }
     }
+
+    if message.attributes.contains(where: { $0 is NitrogramDeletedMessageAttribute }) {
+        // A message the peer deleted that Nitrogram kept. Marking it here, where
+        // the timestamp is built, means every bubble type picks it up from one
+        // place instead of each content node growing its own marker.
+        dateText = "\u{1F5D1} " + dateText
+    }
     
     return dateText
 }

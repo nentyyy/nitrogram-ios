@@ -21,12 +21,14 @@ private final class NitrogramSettingsArguments {
 
 private enum NitrogramSettingsSection: Int32 {
     case ghost
+    case deleted
     case mods
 }
 
 private struct NitrogramFlagsState: Equatable {
     var ghostReadReceipts: Bool
     var ghostOnlineStatus: Bool
+    var keepDeletedMessages: Bool
 }
 
 private enum NitrogramSettingsEntry: ItemListNodeEntry {
@@ -34,6 +36,9 @@ private enum NitrogramSettingsEntry: ItemListNodeEntry {
     case ghostReadReceipts(String, Bool)
     case ghostOnlineStatus(String, Bool)
     case ghostInfo(String)
+    case deletedHeader(String)
+    case keepDeletedMessages(String, Bool)
+    case deletedInfo(String)
     case modsAction(String)
     case modsInfo(String)
 
@@ -41,6 +46,8 @@ private enum NitrogramSettingsEntry: ItemListNodeEntry {
         switch self {
         case .ghostHeader, .ghostReadReceipts, .ghostOnlineStatus, .ghostInfo:
             return NitrogramSettingsSection.ghost.rawValue
+        case .deletedHeader, .keepDeletedMessages, .deletedInfo:
+            return NitrogramSettingsSection.deleted.rawValue
         case .modsAction, .modsInfo:
             return NitrogramSettingsSection.mods.rawValue
         }
@@ -56,6 +63,12 @@ private enum NitrogramSettingsEntry: ItemListNodeEntry {
             return 2
         case .ghostInfo:
             return 3
+        case .deletedHeader:
+            return 10
+        case .keepDeletedMessages:
+            return 11
+        case .deletedInfo:
+            return 12
         case .modsAction:
             return 100
         case .modsInfo:
@@ -82,6 +95,14 @@ private enum NitrogramSettingsEntry: ItemListNodeEntry {
             })
         case let .ghostInfo(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        case let .deletedHeader(text):
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
+        case let .keepDeletedMessages(title, value):
+            return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.setFlag(.keepDeletedMessages, value)
+            })
+        case let .deletedInfo(text):
+            return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         case let .modsAction(title):
             return ItemListDisclosureItem(presentationData: presentationData, title: title, label: "", sectionId: self.section, style: .blocks, action: {
                 arguments.openMods()
@@ -100,6 +121,10 @@ private func nitrogramSettingsEntries(state: NitrogramFlagsState) -> [NitrogramS
     entries.append(.ghostOnlineStatus("Hide Online Status", state.ghostOnlineStatus))
     entries.append(.ghostInfo("Read receipts stay on this device, so senders keep seeing one check mark. Hiding your online status also stops \"last seen\" from updating.\n\nBoth apply to this app only - replying from a notification, or from another device, still reports normally. Telegram may still show you as read if you react or reply."))
 
+    entries.append(.deletedHeader("DELETED MESSAGES"))
+    entries.append(.keepDeletedMessages("Keep Deleted Messages", state.keepDeletedMessages))
+    entries.append(.deletedInfo("When someone deletes a message in a one-to-one chat, keep it and mark it with a trash icon next to its timestamp.\n\nOnly messages received after turning this on can be kept, and only theirs - your own deletions still go through. A kept message may still disappear if the chat history is reloaded from the server."))
+
     entries.append(.modsAction("Mods"))
     entries.append(.modsInfo("Import and manage .ngmod files."))
 
@@ -112,7 +137,8 @@ public func nitrogramSettingsController(context: AccountContext) -> ViewControll
     let readState: () -> NitrogramFlagsState = {
         return NitrogramFlagsState(
             ghostReadReceipts: NitrogramSettings.isEnabled(.ghostReadReceipts),
-            ghostOnlineStatus: NitrogramSettings.isEnabled(.ghostOnlineStatus)
+            ghostOnlineStatus: NitrogramSettings.isEnabled(.ghostOnlineStatus),
+            keepDeletedMessages: NitrogramSettings.isEnabled(.keepDeletedMessages)
         )
     }
 

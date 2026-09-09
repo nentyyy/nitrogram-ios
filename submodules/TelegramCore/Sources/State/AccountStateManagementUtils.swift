@@ -4,6 +4,7 @@ import SwiftSignalKit
 import TelegramApi
 import MtProtoKit
 import EncryptionProvider
+import NitrogramSettings
 
 private func reactionGeneratedEvent(_ previousReactions: ReactionsMessageAttribute?, _ updatedReactions: ReactionsMessageAttribute?, message: Message, transaction: Transaction) -> (reactionAuthor: Peer, reaction: MessageReaction.Reaction, message: Message, timestamp: Int32)? {
     if let updatedReactions = updatedReactions, !message.flags.contains(.Incoming), message.id.peerId.namespace == Namespaces.Peer.CloudUser {
@@ -4441,18 +4442,39 @@ func replayFinalState(
                 }
             case let .DeleteMessagesWithGlobalIds(ids):
                 var resourceIds: [MediaResourceId] = []
-                transaction.deleteMessagesWithGlobalIds(ids, forEachMedia: { media in
-                    addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
-                })
-                if !resourceIds.isEmpty {
-                    let _ = mediaBox.removeCachedResources(Array(Set(resourceIds)), force: true).start()
+                if NitrogramSettings.isEnabled(.keepDeletedMessages) {
+                    // Resolve to message ids first so the kept ones can be
+                    // marked and only the rest deleted.
+                    let messageIds = transaction.messageIdsForGlobalIds(ids)
+                    let partitioned = nitrogramPartitionDeletedMessageIds(transaction: transaction, ids: messageIds)
+                    nitrogramMarkMessagesDeleted(transaction: transaction, ids: partitioned.kept)
+                    if !partitioned.removed.isEmpty {
+                        transaction.deleteMessages(partitioned.removed, forEachMedia: { media in
+                            addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
+                        })
+                    }
+                    if !resourceIds.isEmpty {
+                        let _ = mediaBox.removeCachedResources(Array(Set(resourceIds)), force: true).start()
+                    }
+                    deletedMessageIds.append(contentsOf: partitioned.removed.map { .messageId($0) })
+                } else {
+                    transaction.deleteMessagesWithGlobalIds(ids, forEachMedia: { media in
+                        addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
+                    })
+                    if !resourceIds.isEmpty {
+                        let _ = mediaBox.removeCachedResources(Array(Set(resourceIds)), force: true).start()
+                    }
+                    deletedMessageIds.append(contentsOf: ids.map { .global($0) })
                 }
-                deletedMessageIds.append(contentsOf: ids.map { .global($0) })
             case let .DeleteMessages(ids):
-                _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: ids, manualAddMessageThreadStatsDifference: { id, add, remove in
-                    addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)
-                })
-                deletedMessageIds.append(contentsOf: ids.map { .messageId($0) })
+                let partitioned = nitrogramPartitionDeletedMessageIds(transaction: transaction, ids: ids)
+                nitrogramMarkMessagesDeleted(transaction: transaction, ids: partitioned.kept)
+                if !partitioned.removed.isEmpty {
+                    _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: partitioned.removed, manualAddMessageThreadStatsDifference: { id, add, remove in
+                        addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)
+                    })
+                }
+                deletedMessageIds.append(contentsOf: partitioned.removed.map { .messageId($0) })
             case let .UpdateMinAvailableMessage(id):
                 if let message = transaction.getMessage(id) {
                     updatePeerChatInclusionWithMinTimestamp(transaction: transaction, id: id.peerId, minTimestamp: message.timestamp, forceRootGroupIfNotExists: false)
@@ -6229,4 +6251,50 @@ func replayFinalState(
         updatedStarGiftAuctionMyState: updatedStarGiftAuctionMyState,
         updatedEmojiGameInfo: updatedEmojiGameInfo
     )
+}
+
+/// Splits ids into the messages Nitrogram keeps (marked as deleted) and the
+/// ones that are removed normally.
+///
+/// Only incoming messages in one-to-one chats are kept: keeping our own
+/// "delete for everyone" would be confusing, and keeping channel posts would
+/// fight the server on every history refresh.
+private func nitrogramPartitionDeletedMessageIds(transaction: Transaction, ids: [MessageId]) -> (kept: [MessageId], removed: [MessageId]) {
+    guard NitrogramSettings.isEnabled(.keepDeletedMessages) else {
+        return (kept: [], removed: ids)
+    }
+
+    var kept: [MessageId] = []
+    var removed: [MessageId] = []
+    for id in ids {
+        guard id.peerId.namespace == Namespaces.Peer.CloudUser else {
+            removed.append(id)
+            continue
+        }
+        guard let message = transaction.getMessage(id), message.flags.contains(.Incoming) else {
+            removed.append(id)
+            continue
+        }
+        if message.isNitrogramDeleted {
+            // Already marked; nothing left to do for it.
+            continue
+        }
+        kept.append(id)
+    }
+    return (kept: kept, removed: removed)
+}
+
+private func nitrogramMarkMessagesDeleted(transaction: Transaction, ids: [MessageId]) {
+    let date = Int32(CFAbsoluteTimeGetCurrent() + NSTimeIntervalSince1970)
+    for id in ids {
+        transaction.updateMessage(id, update: { currentMessage in
+            var storeForwardInfo: StoreMessageForwardInfo?
+            if let forwardInfo = currentMessage.forwardInfo {
+                storeForwardInfo = StoreMessageForwardInfo(authorId: forwardInfo.author?.id, sourceId: forwardInfo.source?.id, sourceMessageId: forwardInfo.sourceMessageId, date: forwardInfo.date, authorSignature: forwardInfo.authorSignature, psaType: forwardInfo.psaType, flags: forwardInfo.flags)
+            }
+            var attributes = currentMessage.attributes
+            attributes.append(NitrogramDeletedMessageAttribute(date: date))
+            return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
+        })
+    }
 }
